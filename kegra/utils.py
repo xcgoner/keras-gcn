@@ -47,8 +47,9 @@ def normalize_adj(adj, symmetric=True):
     return a_norm
 
 
-def preprocess_adj(adj, symmetric=True):
-    adj = adj + sp.eye(adj.shape[0])
+def preprocess_adj(adj, symmetric=True, eye=True):
+    if eye:
+        adj = adj + sp.eye(adj.shape[0])
     adj = normalize_adj(adj, symmetric)
     return adj
 
