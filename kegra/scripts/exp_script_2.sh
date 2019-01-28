@@ -19,8 +19,8 @@ export I_MPI_HYDRA_BOOTSTRAP_EXEC=pbs_tmrsh
 
 export KMP_AFFINITY=granularity=fine,compact,1,0;
 
-watchfile=/homes/cx2/gcn/keras-gcn/results/exp_script_1.log
+watchfile=/homes/cx2/gcn/keras-gcn/results/exp_script_2.log
 
 cd /homes/cx2/gcn/keras-gcn/kegra/
-# python train_rgcn.py 2>&1 | tee $watchfile
-python train.py 2>&1 | tee $watchfile
+python train_rgcn.py 2>&1 | tee $watchfile
+# python train.py 2>&1 | tee $watchfile

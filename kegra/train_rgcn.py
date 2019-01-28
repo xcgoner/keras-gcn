@@ -19,7 +19,7 @@ DATASET = 'cora'
 FILTER = 'localpool'  # 'chebyshev'
 MAX_DEGREE = 2  # maximum polynomial degree
 SYM_NORM = True  # symmetric (True) vs. left-only (False) normalization
-NB_EPOCH = 500
+NB_EPOCH = 1000
 PATIENCE = 50  # early stopping patience
 N_FILTERS = 16
 
@@ -35,13 +35,28 @@ print('Using local pooling filters...')
 A_ = preprocess_adj(A, SYM_NORM)
 # adj for regularization
 adj_reg = preprocess_adj(A, SYM_NORM, False)
-adj_reg = adj_reg.toarray()
 support = 1
 graph = [X, A_, adj_reg]
 G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
-ADJ = Input(shape=(None, None), batch_shape=(None, None))
+ADJ = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
 
+reg_counter = 0
+losses = {'classification': 'categorical_crossentropy'}
+loss_weights = {'classification': 1.0}
+outputs = {'classification': y_train}
+reg_mask = np.array(np.ones_like(train_mask), dtype=np.bool)
+sample_weight = {'classification': train_mask}
+reg_outputs = []
 
+def add_regularizer(reg_input, output_length):
+    global reg_counter, losses, loss_weights, outputs, reg_mask, sample_weight
+    reg_counter = reg_counter + 1
+    output_name = 'regularization_%02d' % (reg_counter)
+    losses[output_name] = 'mean_squared_error'
+    loss_weights[output_name] = 0.6
+    outputs[output_name]  = np.zeros((A.shape[0], output_length))
+    sample_weight[output_name] = reg_mask
+    return EigenRegularization(name=output_name)([reg_input, ADJ])
 
 X_in = Input(shape=(X.shape[1],))
 
@@ -53,20 +68,18 @@ H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l
 
 # regulairzation
 # reg_output = Dot(axes=0)([H, ADJ])
-reg_output = EigenRegularization(name='regularization')([H, ADJ])
+# reg_output = EigenRegularization(name='regularization')([H, ADJ])
+reg_outputs.append(add_regularizer(H, N_FILTERS)) 
 
 
 H = Dropout(0.5)(H)
 Y = GraphConvolution(y.shape[1], support, activation='softmax', name='classification')([H, G])
+reg_outputs.append(add_regularizer(Y, y.shape[1]))
 
 # Compile model
-model = Model(inputs=[X_in, G, ADJ], outputs=[Y, reg_output])
-model.compile(loss={'classification': 'categorical_crossentropy', 
-                    'regularization': 'mean_squared_error'}, 
-              loss_weights={'classification': 1.0,
-                            'regularization': 0.01},
-              metrics={'classification': 'accuracy',
-                        'regularization': 'mean_squared_error'},
+model = Model(inputs=[X_in, G, ADJ], outputs=[Y] + reg_outputs)
+model.compile(loss=losses, 
+              loss_weights=loss_weights,
               optimizer=Adam(lr=0.01))
 
 model.summary()
@@ -83,12 +96,13 @@ for epoch in range(1, NB_EPOCH+1):
     t = time.time()
 
     # Single training iteration (we mask nodes without labels for loss calculation)
-    model.fit(graph, {'classification': y_train, 'regularization': np.zeros((A.shape[0], N_FILTERS))}, 
-              sample_weight={'classification': train_mask, 'regularization': np.array(np.ones_like(train_mask), dtype=np.bool)},
+    model.fit(graph, outputs, 
+              sample_weight=sample_weight,
               batch_size=A.shape[0], epochs=1, shuffle=False, verbose=0)
 
     # Predict on full dataset
-    preds, _ = model.predict(graph, batch_size=A.shape[0])
+    preds = model.predict(graph, batch_size=A.shape[0])
+    preds = preds[0]
 
     # Train / validation scores
     train_val_loss, train_val_acc = evaluate_preds(preds, [y_train, y_val],

@@ -15,7 +15,7 @@ DATASET = 'cora'
 FILTER = 'localpool'  # 'chebyshev'
 MAX_DEGREE = 2  # maximum polynomial degree
 SYM_NORM = True  # symmetric (True) vs. left-only (False) normalization
-NB_EPOCH = 500
+NB_EPOCH = 1000
 PATIENCE = 50  # early stopping patience
 
 # Get data

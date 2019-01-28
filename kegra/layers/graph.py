@@ -113,10 +113,11 @@ class EigenRegularization(Layer):
         self.built = True
 
     def call(self, inputs, mask=None):
-        features = inputs[0]
-        basis = inputs[1]
+        x = inputs[0]
+        adj = inputs[1]
 
-        output = K.dot(basis, features)
+        Px = K.dot(adj, x)
+        output = K.subtract(Px, x)
 
         return output
 
