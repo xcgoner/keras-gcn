@@ -15,8 +15,9 @@ DATASET = 'cora'
 FILTER = 'localpool'  # 'chebyshev'
 MAX_DEGREE = 2  # maximum polynomial degree
 SYM_NORM = True  # symmetric (True) vs. left-only (False) normalization
-NB_EPOCH = 1000
-PATIENCE = 50  # early stopping patience
+NB_EPOCH = 300
+PATIENCE = 10  # early stopping patience
+N_FILTERS = 64
 
 # Get data
 X, A, y = load_data(dataset=DATASET)
@@ -39,7 +40,7 @@ X_in = Input(shape=(X.shape[1],))
 # NOTE: We pass arguments for graph convolutional layers as a list of tensors.
 # This is somewhat hacky, more elegant options would require rewriting the Layer base class.
 H = Dropout(0.5)(X_in)
-H = GraphConvolution(16, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
+H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
 H = Dropout(0.5)(H)
 Y = GraphConvolution(y.shape[1], support, activation='softmax')([H, G])
 
@@ -51,6 +52,7 @@ model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=0.01))
 wait = 0
 preds = None
 best_val_loss = 99999
+best_val_acc = 0
 
 # Fit
 for epoch in range(1, NB_EPOCH+1):
@@ -75,6 +77,8 @@ for epoch in range(1, NB_EPOCH+1):
           "val_acc= {:.4f}".format(train_val_acc[1]),
           "time= {:.4f}".format(time.time() - t))
 
+    if train_val_acc[1] > best_val_acc:
+        best_val_acc = train_val_acc[1]
     # Early stopping
     if train_val_loss[1] < best_val_loss:
         best_val_loss = train_val_loss[1]
@@ -89,4 +93,7 @@ for epoch in range(1, NB_EPOCH+1):
 test_loss, test_acc = evaluate_preds(preds, [y_test], [idx_test])
 print("Test set results:",
       "loss= {:.4f}".format(test_loss[0]),
-      "accuracy= {:.4f}".format(test_acc[0]))
+      "accuracy= {:.4f}".format(test_acc[0]), flush=True)
+# print("Best test set results:",
+#       "loss= {:.4f}".format(best_val_loss),
+#       "accuracy= {:.4f}".format(best_val_acc), flush=True)

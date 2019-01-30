@@ -23,4 +23,4 @@ watchfile=/homes/cx2/gcn/keras-gcn/results/exp_script_1.log
 
 cd /homes/cx2/gcn/keras-gcn/kegra/
 # python train_rgcn.py 2>&1 | tee $watchfile
-python train.py 2>&1 | tee $watchfile
+python train_rgcn.py --lr 0.01 --reigen 0 --shuffle 0.1 --nfolds 5 --ntrials 40 2>&1 | tee $watchfile

@@ -3,6 +3,7 @@ from __future__ import print_function
 import scipy.sparse as sp
 import numpy as np
 from scipy.sparse.linalg.eigen.arpack import eigsh, ArpackNoConvergence
+import random
 
 
 def encode_onehot(labels):
@@ -10,6 +11,11 @@ def encode_onehot(labels):
     classes_dict = {c: np.identity(len(classes))[i, :] for i, c in enumerate(classes)}
     labels_onehot = np.array(list(map(classes_dict.get, labels)), dtype=np.int32)
     return labels_onehot
+
+def make_sym_adj(adj):
+    # build symmetric adjacency matrix
+    adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+    return adj
 
 
 def load_data(path="data/cora/", dataset="cora"):
@@ -30,11 +36,32 @@ def load_data(path="data/cora/", dataset="cora"):
                         shape=(labels.shape[0], labels.shape[0]), dtype=np.float32)
 
     # build symmetric adjacency matrix
-    adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+    adj = make_sym_adj(adj)
 
     print('Dataset has {} nodes, {} edges, {} features.'.format(adj.shape[0], edges.shape[0], features.shape[1]))
 
-    return features.todense(), adj, labels
+    return features.todense(), adj, labels, edges
+
+def shuffle_edges(edges, n_nodes, n_rounds):
+    e = np.copy(edges)
+
+    for i in range(n_rounds):
+        e1 = random.randint(0, e.shape[0]-1)
+        e2 = random.randint(0, e.shape[0]-1)
+        if e1 == e2 or e[e1, 0] == e[e2, 0] or e[e1, 1] == e[e2, 1] or e[e1, 0] == e[e2, 1] or e[e1, 1] == e[e2, 0]:
+            continue
+        else:
+            # swap edge
+            tmp = e[e1, 1]
+            e[e1, 1] = e[e2, 0]
+            e[e2, 0] = tmp
+
+    adj = sp.coo_matrix((np.ones(e.shape[0]), (e[:, 0], e[:, 1])),
+                        shape=(n_nodes, n_nodes), dtype=np.float32)
+
+    # build symmetric adjacency matrix
+    adj = make_sym_adj(adj)
+    return adj
 
 
 def normalize_adj(adj, symmetric=True):

@@ -117,7 +117,7 @@ class EigenRegularization(Layer):
         adj = inputs[1]
 
         Px = K.dot(adj, x)
-        output = K.subtract(Px, x)
+        output = Px - x
 
         return output
 
