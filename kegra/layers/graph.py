@@ -97,27 +97,3 @@ class GraphConvolution(Layer):
         base_config = super(GraphConvolution, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-
-
-class EigenRegularization(Layer):
-    """Basic graph convolution layer as in https://arxiv.org/abs/1609.02907"""
-    def __init__(self, **kwargs):
-        if 'input_shape' not in kwargs and 'input_dim' in kwargs:
-            kwargs['input_shape'] = (kwargs.pop('input_dim'),)
-        super(EigenRegularization, self).__init__(**kwargs)
-
-    def compute_output_shape(self, input_shapes):
-        return input_shapes  # (batch_size, output_dim)
-
-    def build(self, input_shapes):
-        self.built = True
-
-    def call(self, inputs, mask=None):
-        x = inputs[0]
-        adj = inputs[1]
-
-        Px = K.dot(adj, x)
-        output = Px - x
-
-        return output
-
