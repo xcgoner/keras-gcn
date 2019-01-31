@@ -101,9 +101,11 @@ for trial in range(args.ntrials):
     set_random_seed(rnd_seed)
     random.seed(rnd_seed)
 
+    # A_ will be passed to G, which is the normalized adjacency matrix with self-loop
     G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
     # ADJ = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
 
+    # feature input
     X_in = Input(shape=(F,))
 
     # Define model architecture
