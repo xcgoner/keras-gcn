@@ -28,7 +28,6 @@ import time, argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type=str, help="name of the dataset", default="cora")
 parser.add_argument("--nepochs", type=int, help="number of epochs", default=300)
-parser.add_argument("--patience", type=int, help="early stopping", default=100)
 parser.add_argument("--nfilters", type=int, help="number of hidden features", default=16)
 parser.add_argument("--ntrials", type=int, help="number of runs", default=10)
 parser.add_argument("--augmentation", type=str, help="type of augmentation: shuffle_edge, shuffle_mix", default="no_augmentation")
@@ -112,28 +111,23 @@ for trial in range(args.ntrials):
     # The model is similar to https://github.com/dmlc/dgl/blob/master/examples/mxnet/gcn/gcn_concat.py
     # NOTE: We pass arguments for graph convolutional layers as a list of tensors.
     # This is somewhat hacky, more elegant options would require rewriting the Layer base class.
-    # H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([X_in, G])
-    H = GraphConvolution(N_FILTERS, support, activation='relu')([X_in, G])
+
+    # Dense input
+    H = Dense(N_FILTERS, activation='relu', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))(X_in)
+    # H = Dense(N_FILTERS, activation='relu')(X_in)
     H = Dropout(0.5)(H)
-    # H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
+    H = Concatenate()([X_in, H])
 
-    concatenate_list = [X_in, H]
 
-    if args.nlayers > 1:
+    for i in range(args.nlayers):
+        H_input = H
+        H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H_input, G])
+        # H = GraphConvolution(N_FILTERS, support, activation='relu')([H_input, G])
+        H = Dropout(0.5)(H)
+        H = Concatenate()([H_input, H])
 
-        for i in range(args.nlayers - 1):
-            H = Concatenate()(concatenate_list)
-            # H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
-            H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
-            H = Dropout(0.5)(H)
-            # H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
-            concatenate_list.append(H)
-
-    H = Concatenate()(concatenate_list)
-
-    H = Dropout(0.5)(H)
-    # Y = Dense(n_classes, activation='softmax', kernel_regularizer=l2(5e-4))(H)
-    Y = Dense(n_classes, activation='softmax')(H)
+    Y = Dense(n_classes, activation='softmax', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))(H)
+    # Y = Dense(n_classes, activation='softmax')(H)
     # Y = GraphConvolution(n_classes, support, activation='softmax', kernel_regularizer=l2(5e-4))([H, G])
     # reg_outputs.append(add_regularizer(Y, y.shape[1]))
 
@@ -170,7 +164,6 @@ for trial in range(args.ntrials):
     # model.summary()
 
     # Helper variables for main training loop
-    wait = 0
     preds = None
     best_val_loss = 99999
 
@@ -206,14 +199,8 @@ for trial in range(args.ntrials):
         # Early stopping
         if eval_results[0] < best_val_loss:
             best_val_loss = eval_results[0]
-            wait = 0
             # save best model
             model.save_weights(args.save)
-        else:
-            if wait >= args.patience:
-                print('Epoch {}: early stopping'.format(epoch))
-                break
-            wait += 1
 
 
     # Testing

@@ -5,7 +5,7 @@ from keras import regularizers
 from keras.engine import Layer
 import keras.backend as K
 
-
+# kernel_initializer='glorot_uniform',
 class GraphConvolution(Layer):
     """Basic graph convolution layer as in https://arxiv.org/abs/1609.02907"""
     def __init__(self, units, support=1,
