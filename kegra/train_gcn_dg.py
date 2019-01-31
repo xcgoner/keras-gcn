@@ -10,7 +10,7 @@ np.random.seed(rnd_seed)
 set_random_seed(rnd_seed)
 random.seed(rnd_seed)
 
-from keras.layers import Input, Dropout, Dot, Subtract, Reshape
+from keras.layers import Input, Dropout, Dot, Subtract, Reshape, Concatenate, Dense
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.regularizers import l2
@@ -28,14 +28,16 @@ import time, argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type=str, help="name of the dataset", default="cora")
 parser.add_argument("--nepochs", type=int, help="number of epochs", default=300)
-parser.add_argument("--patience", type=int, help="early stopping", default=50)
-parser.add_argument("--nfilters", type=int, help="number of hidden features", default=64)
+parser.add_argument("--patience", type=int, help="early stopping", default=100)
+parser.add_argument("--nfilters", type=int, help="number of hidden features", default=16)
 parser.add_argument("--ntrials", type=int, help="number of runs", default=10)
 parser.add_argument("--augmentation", type=str, help="type of augmentation: shuffle_edge, shuffle_mix", default="no_augmentation")
 parser.add_argument("--shuffle", type=float, help="randomly shuffle edges, percentage", default=0)
 parser.add_argument("--alpha", type=float, help="hyperparameter of shuffle_mix", default=0)
 parser.add_argument("--nfolds", type=int, help="folds of data augmentation", default=0)
-parser.add_argument("--nlayers", type=int, help="number of stacking layers", default=0)
+parser.add_argument("--nlayers", type=int, help="number of stacking layers", default=1)
+parser.add_argument("--selfloop", type=str, help="type of self-loop", default="eye")
+parser.add_argument("--sym", type=int, help="symmetric normalization", default=1)
 parser.add_argument("--lr", type=float, help="learning rate", default=0.01)
 parser.add_argument("--save", type=str, help="path of saved model", default="")
 
@@ -44,25 +46,33 @@ args = parser.parse_args()
 print(args, flush=True)
 
 # Define parameters
-FILTER = 'localpool'  # 'chebyshev'
-SYM_NORM = True  # symmetric (True) vs. left-only (False) normalization
+if args.sym == 1:
+    SYM_NORM = True  # symmetric (True) vs. left-only (False) normalization
+else:
+    SYM_NORM = False
 N_FILTERS = args.nfilters
 N_FOLDS = args.nfolds
 if args.augmentation == "no_augmentation":
     N_FOLDS = 0
 
 # Get data
-X, A, y, edges = load_data(dataset=args.dataset)
-y_train, y_val, y_test, idx_train, idx_val, idx_test, train_mask = get_splits(y)
+nodes, edges, A, X, y_train, y_val, y_test, idx_train, idx_val, idx_test = load_data(args.dataset)
 
-# Normalize X
-X /= X.sum(1).reshape(-1, 1)
+# Parameters
+N = X.shape[0]                # Number of nodes in the graph
+F = X.shape[1]                # Original feature dimension
+n_classes = y_train.shape[1]  # Number of classes
+
+# Preprocessing operations
+X = preprocess_features(X)
+A_ = preprocess_adj(A, SYM_NORM, args.selfloop)
+
+# # Normalize X
+# X /= X.sum(1).reshape(-1, 1)
 
 """ Local pooling filters (see 'renormalization trick' in Kipf & Welling, arXiv 2016) """
 print('Using local pooling filters...')
-A_ = preprocess_adj(A, SYM_NORM)
-# adj for regularization
-adj_reg = preprocess_adj(A, SYM_NORM, False)
+
 support = 1
 
 # def add_regularizer(reg_input, output_length):
@@ -92,46 +102,52 @@ for trial in range(args.ntrials):
     random.seed(rnd_seed)
 
     G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
-    ADJ = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
-    reg_counter = 0
-    losses = {'classification': 'categorical_crossentropy'}
-    loss_weights = {'classification': 1.0}
-    outputs = {'classification': y_train}
-    reg_mask = np.array(np.ones_like(train_mask), dtype=np.bool)
-    sample_weight = {'classification': train_mask}
-    reg_outputs = []
+    # ADJ = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
 
-    X_in = Input(shape=(X.shape[1],))
+    X_in = Input(shape=(F,))
 
     # Define model architecture
+    # The model is similar to https://github.com/dmlc/dgl/blob/master/examples/mxnet/gcn/gcn_concat.py
     # NOTE: We pass arguments for graph convolutional layers as a list of tensors.
     # This is somewhat hacky, more elegant options would require rewriting the Layer base class.
-    H = Dropout(0.5)(X_in)
-    H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
+    # H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([X_in, G])
+    H = GraphConvolution(N_FILTERS, support, activation='relu')([X_in, G])
+    H = Dropout(0.5)(H)
+    # H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
 
+    concatenate_list = [X_in, H]
 
-    for i in range(args.nlayers):
-        H = Dropout(0.5)(H)
-        H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
+    if args.nlayers > 1:
 
+        for i in range(args.nlayers - 1):
+            H = Concatenate()(concatenate_list)
+            # H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4))([H, G])
+            H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
+            H = Dropout(0.5)(H)
+            # H = GraphConvolution(N_FILTERS, support, activation='relu')([H, G])
+            concatenate_list.append(H)
+
+    H = Concatenate()(concatenate_list)
 
     H = Dropout(0.5)(H)
-    Y = GraphConvolution(y.shape[1], support, activation='softmax', name='classification')([H, G])
+    # Y = Dense(n_classes, activation='softmax', kernel_regularizer=l2(5e-4))(H)
+    Y = Dense(n_classes, activation='softmax')(H)
+    # Y = GraphConvolution(n_classes, support, activation='softmax', kernel_regularizer=l2(5e-4))([H, G])
     # reg_outputs.append(add_regularizer(Y, y.shape[1]))
 
     input_list = [X_in, G,]
-    output_list = [Y]
+    output_list = Y
     graph = [X, A_]
 
     # data augmentation
     augmented_graphs = []
     for fold in range(N_FOLDS):
         if args.augmentation == "shuffle_edge":
-            shuffled_adj = shuffle_edges(edges, y.shape[0], int(args.shuffle * edges.shape[0]))
+            shuffled_adj = shuffle_edges(nodes, edges, N, int(args.shuffle * edges.shape[0]))
         elif args.augmentation == "shuffle_mix":
-            shuffled_adj = shuffle_mix(edges, y.shape[0], args.alpha)
+            shuffled_adj = shuffle_mix(nodes, edges, N, args.alpha)
 
-        shuffled_conv_adj = preprocess_adj(shuffled_adj, SYM_NORM)
+        shuffled_conv_adj = preprocess_adj(shuffled_adj, SYM_NORM, args.selfloop)
         augmented_graphs.append(shuffled_conv_adj)
 
     model = Model(inputs=input_list, outputs=output_list)
@@ -139,13 +155,12 @@ for trial in range(args.ntrials):
     # Compile model
     if N_FOLDS > 0:
         # accumulate gradients
-        model.compile(loss=losses, 
-                loss_weights=loss_weights,
-                optimizer=AdamAccumulate(lr=args.lr, accum_iters=N_FOLDS+1))
+        optimizer = AdamAccumulate(lr=args.lr, accum_iters=N_FOLDS+1)
     else:
-        model.compile(loss=losses, 
-                    loss_weights=loss_weights,
-                    optimizer=Adam(lr=args.lr))
+        optimizer = Adam(lr=args.lr)
+    model.compile(loss='categorical_crossentropy', 
+                  weighted_metrics=['acc'],
+                  optimizer=optimizer)
 
     # reset
     # reset_weights(model)
@@ -156,7 +171,6 @@ for trial in range(args.ntrials):
     wait = 0
     preds = None
     best_val_loss = 99999
-    best_val_acc = 0
 
     # Fit
     for epoch in range(1, args.nepochs+1):
@@ -165,37 +179,31 @@ for trial in range(args.ntrials):
         t = time.time()
 
         # Single training iteration (we mask nodes without labels for loss calculation)
-        model.fit(graph, outputs, 
-                sample_weight=sample_weight,
-                batch_size=A.shape[0], epochs=1, shuffle=False, verbose=0)
+        model.fit(graph, y_train, 
+                sample_weight=idx_train,
+                batch_size=N, epochs=1, shuffle=False, verbose=0)
 
         for fold in range(N_FOLDS):
             
             graph_augmented = [X, augmented_graphs[fold]]
 
-            model.fit(graph_augmented, outputs, 
-                    sample_weight=sample_weight,
-                    batch_size=A.shape[0], epochs=1, shuffle=False, verbose=0)
+            model.fit(graph_augmented, y_train, 
+                    sample_weight=idx_train,
+                    batch_size=N, epochs=1, shuffle=False, verbose=0)
 
-        # Predict on full dataset
-        preds = model.predict(graph, batch_size=A.shape[0])
-
-        # Train / validation scores
-        train_val_loss, train_val_acc = evaluate_preds(preds, [y_train, y_val],
-                                                    [idx_train, idx_val])
+        # Evaluate model
+        eval_results = model.evaluate(graph, y_val,
+                                    sample_weight=idx_val,
+                                    batch_size=N, verbose=0)
         print("Trial: {:04d}".format(trial+1),
             "Epoch: {:04d}".format(epoch),
-            "train_loss= {:.4f}".format(train_val_loss[0]),
-            "train_acc= {:.4f}".format(train_val_acc[0]),
-            "val_loss= {:.4f}".format(train_val_loss[1]),
-            "val_acc= {:.4f}".format(train_val_acc[1]),
+            "val_loss= {:.4f}".format(eval_results[0]),
+            "val_acc= {:.4f}".format(eval_results[1]),
             "time= {:.4f}".format(time.time() - t), flush=True)
 
-        if train_val_acc[1] > best_val_acc:
-            best_val_acc = train_val_acc[1]
         # Early stopping
-        if train_val_loss[1] < best_val_loss:
-            best_val_loss = train_val_loss[1]
+        if eval_results[0] < best_val_loss:
+            best_val_loss = eval_results[0]
             wait = 0
             # save best model
             model.save_weights(args.save)
@@ -208,15 +216,15 @@ for trial in range(args.ntrials):
 
     # Testing
     model.load_weights(args.save)
-    preds = model.predict(graph, batch_size=A.shape[0])
-    train_val_loss, train_val_acc = evaluate_preds(preds, [y_train, y_val],
-                                                [idx_train, idx_val])
-    test_loss, test_acc = evaluate_preds(preds, [y_test], [idx_test])
+    # Evaluate model
+    eval_results = model.evaluate(graph, y_test,
+                                sample_weight=idx_test,
+                                batch_size=N, verbose=0)
     print("Test set results:",
-        "loss= {:.4f}".format(test_loss[0]),
-        "accuracy= {:.4f}".format(test_acc[0]), flush=True)
-    test_loss_list.append(test_loss[0])
-    test_acc_list.append(test_acc[0])
+        "loss= {:.4f}".format(eval_results[0]),
+        "accuracy= {:.4f}".format(eval_results[1]), flush=True)
+    test_loss_list.append(eval_results[0])
+    test_acc_list.append(eval_results[1])
 
     print("Avg test set results:",
             "loss= {:.4f} +\- {:.4f}".format(np.mean(test_loss_list), np.std(test_loss_list)),

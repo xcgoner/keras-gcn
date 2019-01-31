@@ -4,9 +4,10 @@ import scipy.sparse as sp
 import numpy as np
 from scipy.sparse.linalg.eigen.arpack import eigsh, ArpackNoConvergence
 import random
+import networkx as nx
 from kegra.utils import *
 
-def shuffle_edges(edges, n_nodes, n_rounds):
+def shuffle_edges(nodes, edges, n_nodes, n_rounds):
     e = np.copy(edges)
 
     for i in range(n_rounds):
@@ -20,20 +21,21 @@ def shuffle_edges(edges, n_nodes, n_rounds):
             e[e1, 1] = e[e2, 0]
             e[e2, 0] = tmp
 
-    adj = sp.coo_matrix((np.ones(e.shape[0]), (e[:, 0], e[:, 1])),
-                        shape=(n_nodes, n_nodes), dtype=np.float32)
-
-    # build symmetric adjacency matrix
-    adj = make_sym_adj(adj)
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(e)
+    adj = nx.adjacency_matrix(G)
+    adj = adj.astype('float32')
     return adj
 
-def shuffle_mix(edges, n_nodes, alpha):
-    adj = sp.coo_matrix((np.ones(edges.shape[0]), (edges[:, 0], edges[:, 1])),
-                        shape=(n_nodes, n_nodes), dtype=np.float32)
+def shuffle_mix(nodes, edges, n_nodes, alpha):
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    G.add_edges_from(edges)
+    adj = nx.adjacency_matrix(G)
+    adj = adj.astype('float32')
 
-    # build symmetric adjacency matrix
-    adj = make_sym_adj(adj)
-    shuffled_adj = shuffle_edges(edges, n_nodes, edges.shape[0] * 2)
+    shuffled_adj = shuffle_edges(nodes, edges, n_nodes, edges.shape[0]*2)
 
     adj = adj * (1-alpha) + shuffled_adj * alpha
 
