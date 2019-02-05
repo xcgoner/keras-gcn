@@ -114,10 +114,11 @@ def preprocess_adj(adj, symmetric=True, self_loop="eye"):
 
 def approx_expm(M, k):
     M_exp = sp.eye(M.shape[0]) + M
-    M_factor = M
-    for i in range(2,k):
-        M_factor = M_factor * M / float(i)
-        M_exp += M_factor
+    if k > 1:
+        M_factor = M
+        for i in range(2,k+1):
+            M_factor = M_factor * M / float(i)
+            M_exp += M_factor
     return M_exp
 
 def soft_threshold(M, threshold = 0, scale = 1):
