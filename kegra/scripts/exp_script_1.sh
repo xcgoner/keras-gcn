@@ -26,5 +26,5 @@ modelfile=$basename.h5
 
 cd /homes/cx2/gcn/keras-gcn/kegra/
 # python train_rgcn.py 2>&1 | tee $watchfile
-# python train_gcn_reg.py --save $modelfile --lr 0.01 --nfolds 0 --augmentation no_augmentation --selfloop "eye" --reigen 0.1 --nepochs 200 --nlayers 2 --ntrials 1 2>&1 | tee $watchfile
-python train_gcn_reg.py --save $modelfile --lr 0.01 --nfolds 0 --augmentation no_augmentation --selfloop "eye" --reigen 0 --nepochs 200 --nlayers 2 --ntrials 1 2>&1 | tee $watchfile
+python train_gcn_reg.py --save $modelfile --lr 0.001 --nfolds 0 --augmentation no_augmentation --nfilters 64 --selfloop "eye" --reigen 0.1 --nepochs 400 --nlayers 2 --ntrials 1 2>&1 | tee $watchfile
+# python train_gcn_reg.py --save $modelfile --lr 0.002 --nfolds 0 --augmentation no_augmentation --nfilters 64 --selfloop "eye" --reigen 0 --nepochs 200 --nlayers 2 --ntrials 1 2>&1 | tee $watchfile

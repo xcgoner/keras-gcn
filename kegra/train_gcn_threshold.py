@@ -15,7 +15,7 @@ from keras.models import Model
 from keras.optimizers import Adam
 from keras.regularizers import l2
 
-from kegra.layers.graph import GraphConvolution, DiffRegularization
+from kegra.layers.graph import GraphConvolution
 from kegra.optimizer.sgd import AdamAccumulate
 from kegra.utils import *
 from kegra.augmentation import *
@@ -38,7 +38,6 @@ parser.add_argument("--nlayers", type=int, help="number of stacking layers", def
 parser.add_argument("--selfloop", type=str, help="type of self-loop", default="eye")
 parser.add_argument("--sym", type=int, help="symmetric normalization", default=1)
 parser.add_argument("--lr", type=float, help="learning rate", default=0.01)
-parser.add_argument("--reigen", type=float, help="weight of regularization", default=0.1)
 parser.add_argument("--save", type=str, help="path of saved model", default="")
 
 args = parser.parse_args()
@@ -65,6 +64,11 @@ n_classes = y_train.shape[1]  # Number of classes
 
 # Preprocessing operations
 X = preprocess_features(X)
+
+# Soft thresholding
+A_threshold = soft_threshold(A)
+A = A * A_threshold
+
 A_ = preprocess_adj(A, SYM_NORM, args.selfloop)
 
 # # Normalize X
@@ -74,21 +78,6 @@ A_ = preprocess_adj(A, SYM_NORM, args.selfloop)
 print('Using local pooling filters...')
 
 support = 1
-
-def add_regularizer(x, Px, output_length):
-    global reg_counter, losses, loss_weights, train_outputs, val_outputs, test_outputs, reg_mask, train_sample_weight, val_sample_weight, test_sample_weight, N, weighted_metrics
-    reg_counter = reg_counter + 1
-    output_name = 'regularization_%02d' % (reg_counter)
-    losses[output_name] = 'mean_squared_error'
-    loss_weights[output_name] = float(args.reigen)
-    train_outputs[output_name]  = np.zeros((N, output_length))
-    val_outputs[output_name]  = np.zeros((N, output_length))
-    test_outputs[output_name]  = np.zeros((N, output_length))
-    train_sample_weight[output_name] = reg_mask
-    val_sample_weight[output_name] = reg_mask
-    test_sample_weight[output_name] = reg_mask
-    weighted_metrics.append('mse')
-    return DiffRegularization(name=output_name)([x, Px])
 
 def reset_weights(model):
         session = K.get_session()
@@ -108,64 +97,27 @@ for trial in range(args.ntrials):
 
     # A_ will be passed to G, which is the normalized adjacency matrix with self-loop
     G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
+    # ADJ = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
 
     # feature input
     X_in = Input(shape=(F,))
-
-    # multiple outputs
-    reg_counter = 0
-    losses = {'classification': 'categorical_crossentropy'}
-    loss_weights = {'classification': 1.0}
-    train_outputs = {'classification': y_train}
-    val_outputs = {'classification': y_val}
-    test_outputs = {'classification': y_test}
-    reg_mask = np.array(np.ones_like(idx_train), dtype=np.bool)
-    train_sample_weight = {'classification': idx_train}
-    val_sample_weight = {'classification': idx_val}
-    test_sample_weight = {'classification': idx_test}
-    weighted_metrics=['acc']
-    reg_outputs = []
 
     # Define model architecture
     # The model is similar to https://github.com/dmlc/dgl/blob/master/examples/mxnet/gcn/gcn_concat.py
     # NOTE: We pass arguments for graph convolutional layers as a list of tensors.
     # This is somewhat hacky, more elegant options would require rewriting the Layer base class.
 
-    # # Dense input
-    # H = Dense(N_FILTERS, activation='relu', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))(X_in)
-    # # H = Dense(N_FILTERS, activation='relu')(X_in)
-    # H = Dropout(0.5)(H)
-    # H = Concatenate()([X_in, H])
+    H = X_in
 
-    activation = 'relu'
-
-    # H_in = Dense(N_FILTERS, activation=activation, kernel_regularizer=l2(5e-4))(X_in)
-    # H = H_in
-
-    H_in = X_in
-
-    H = H_in
     for i in range(args.nlayers-1):
-        H = GraphConvolution(N_FILTERS, support, activation=activation, kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])
-        # H = GraphConvolution(N_FILTERS, support, activation='relu')([H_input, G])
+        H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])
         H = Dropout(0.5)(H)
-        # H = Concatenate()([H_input, H])
-    
-    H = GraphConvolution(F, support, activation=activation, kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])
 
-    Y = Concatenate()([H, X_in])
-    Y = Dense(n_classes, activation='softmax', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4), name='classification')(Y)
-    # Y = Dense(n_classes, activation='softmax')(H)
-    # Y = GraphConvolution(n_classes, support, activation='softmax', kernel_regularizer=l2(5e-4))([H, G])
-    if args.reigen > 0:
-        reg_outputs.append(add_regularizer(H_in, H, F))
+    Y = GraphConvolution(n_classes, support, activation='softmax', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])
 
     input_list = [X_in, G,]
-    output_list = [Y]
+    output_list = Y
     graph = [X, A_]
-
-    if args.reigen > 0:
-        output_list = output_list + reg_outputs
 
     # data augmentation
     augmented_graphs = []
@@ -186,9 +138,8 @@ for trial in range(args.ntrials):
         optimizer = AdamAccumulate(lr=args.lr, accum_iters=N_FOLDS+1)
     else:
         optimizer = Adam(lr=args.lr)
-    model.compile(loss=losses, 
-                  loss_weights=loss_weights,
-                  weighted_metrics=weighted_metrics,
+    model.compile(loss='categorical_crossentropy', 
+                  weighted_metrics=['acc'],
                   optimizer=optimizer)
 
     # reset
@@ -207,72 +158,46 @@ for trial in range(args.ntrials):
         t = time.time()
 
         # Single training iteration (we mask nodes without labels for loss calculation)
-        model.fit(graph, train_outputs, 
-                sample_weight=train_sample_weight,
+        model.fit(graph, y_train, 
+                sample_weight=idx_train,
                 batch_size=N, epochs=1, shuffle=False, verbose=0)
 
         for fold in range(N_FOLDS):
             
             graph_augmented = [X, augmented_graphs[fold]]
 
-            model.fit(graph_augmented, train_outputs, 
-                    sample_weight=train_sample_weight,
+            model.fit(graph_augmented, y_train, 
+                    sample_weight=idx_train,
                     batch_size=N, epochs=1, shuffle=False, verbose=0)
 
         # Evaluate model
-        # print(model.metrics_names, flush=True)
-        eval_results = model.evaluate(graph, val_outputs,
-                                    sample_weight=val_sample_weight,
+        eval_results = model.evaluate(graph, y_val,
+                                    sample_weight=idx_val,
                                     batch_size=N, verbose=0)
-        if args.reigen > 0:
-            val_loss = eval_results[1]
-            val_acc = eval_results[3]
-        else:
-            val_loss = eval_results[0]
-            val_acc = eval_results[1]
         print("Trial: {:04d}".format(trial+1),
             "Epoch: {:04d}".format(epoch),
-            "val_loss= {:.4f}".format(val_loss),
-            "val_acc= {:.4f}".format(val_acc),
+            "val_loss= {:.4f}".format(eval_results[0]),
+            "val_acc= {:.4f}".format(eval_results[1]),
             "time= {:.4f}".format(time.time() - t), flush=True)
 
         # Early stopping
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        if eval_results[0] < best_val_loss:
+            best_val_loss = eval_results[0]
             # save best model
             model.save_weights(args.save)
 
 
     # Testing
-    # Evaluate model
-    eval_results = model.evaluate(graph, test_outputs,
-                                sample_weight=test_sample_weight,
-                                batch_size=N, verbose=0)
-    if args.reigen > 0:
-        test_loss = eval_results[1]
-        test_acc = eval_results[3]
-    else:
-        test_loss = eval_results[0]
-        test_acc = eval_results[1]
-    print("Test set results:",
-        "loss= {:.4f}".format(test_loss),
-        "accuracy= {:.4f}".format(test_acc), flush=True)
     model.load_weights(args.save)
-    # Evaluate best model
-    eval_results = model.evaluate(graph, test_outputs,
-                                sample_weight=test_sample_weight,
+    # Evaluate model
+    eval_results = model.evaluate(graph, y_test,
+                                sample_weight=idx_test,
                                 batch_size=N, verbose=0)
-    if args.reigen > 0:
-        test_loss = eval_results[1]
-        test_acc = eval_results[3]
-    else:
-        test_loss = eval_results[0]
-        test_acc = eval_results[1]
-    print("Test set results on best model:",
-        "loss= {:.4f}".format(test_loss),
-        "accuracy= {:.4f}".format(test_acc), flush=True)
-    test_loss_list.append(test_loss)
-    test_acc_list.append(test_acc)
+    print("Test set results:",
+        "loss= {:.4f}".format(eval_results[0]),
+        "accuracy= {:.4f}".format(eval_results[1]), flush=True)
+    test_loss_list.append(eval_results[0])
+    test_acc_list.append(eval_results[1])
 
     print("Avg test set results:",
             "loss= {:.4f} +\- {:.4f}".format(np.mean(test_loss_list), np.std(test_loss_list)),

@@ -7,6 +7,7 @@ import sys
 import networkx as nx
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse import linalg
 
 
 def parse_index_file(filename):
@@ -110,3 +111,9 @@ def preprocess_adj(adj, symmetric=True, self_loop="eye"):
         pass
     adj = normalize_adj(adj, symmetric)
     return adj
+
+def soft_threshold(M, threshold = 0, scale = 1):
+    M = (M-threshold) * scale
+    M_exp = linalg.expm(M)
+    # print(type(M_exp), flush=True)
+    return M_exp / M_exp.diagonal().sum()
