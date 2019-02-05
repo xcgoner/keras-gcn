@@ -26,4 +26,4 @@ modelfile=$basename.h5
 
 cd /homes/cx2/gcn/keras-gcn/kegra/
 
-python train_gcn_exponential_concat.py --save $modelfile --dataset "citeseer" --lr 0.01 --nepochs 200 --nlayers 2 --nfilters 16 --expm 2 --ntrials 1 2>&1 | tee $watchfile
+python train_gcn_exponential_concat.py --save $modelfile --dataset "citeseer" --lr 0.01 --nepochs 200 --nlayers 2 --nfilters 16 --expm 3 --ntrials 1 2>&1 | tee $watchfile
