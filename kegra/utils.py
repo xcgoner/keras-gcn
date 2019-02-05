@@ -105,15 +105,29 @@ def preprocess_adj(adj, symmetric=True, self_loop="eye"):
     if self_loop == "eye":
         adj = adj + sp.eye(adj.shape[0])
     elif self_loop == "degree":
-        # adj = adj + sp.diags(np.power(np.array(adj.sum(1)), 0.3).flatten(), 0)
-        adj = adj + sp.diags(np.array(adj.sum(1)).flatten(), 0)
+        adj = adj + sp.diags(np.power(np.array(adj.sum(1)), 0.3).flatten(), 0)
+        # adj = adj + sp.diags(np.array(adj.sum(1)).flatten(), 0)
     else:
         pass
     adj = normalize_adj(adj, symmetric)
     return adj
 
+def approx_expm(M, k):
+    M_exp = sp.eye(M.shape[0]) + M
+    M_factor = M
+    for i in range(2,k):
+        M_factor = M_factor * M / float(i)
+        M_exp += M_factor
+    return M_exp
+
 def soft_threshold(M, threshold = 0, scale = 1):
-    M = (M-threshold) * scale
+    M = (M - threshold * sp.eye(M.shape[0])) * scale
     M_exp = linalg.expm(M)
+    # print(type(M_exp), flush=True)
+    return M_exp / M_exp.diagonal().sum()
+
+def approx_soft_threshold(M, threshold = 0, scale = 1, k=4):
+    M = (M - threshold * sp.eye(M.shape[0])) * scale
+    M_exp = approx_expm(M, k)
     # print(type(M_exp), flush=True)
     return M_exp / M_exp.diagonal().sum()

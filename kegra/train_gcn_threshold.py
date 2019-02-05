@@ -65,11 +65,16 @@ n_classes = y_train.shape[1]  # Number of classes
 # Preprocessing operations
 X = preprocess_features(X)
 
-# Soft thresholding
-A_threshold = soft_threshold(A)
-A = A * A_threshold
+# # Soft thresholding
+# A_threshold = approx_soft_threshold(A)
+# A = A * A_threshold
 
 A_ = preprocess_adj(A, SYM_NORM, args.selfloop)
+
+# Soft thresholding
+# A_threshold = approx_soft_threshold(A_, 0.5, 20, 10)
+A_threshold = soft_threshold(A_, 0.5, 20)
+A_ = A_ * A_threshold
 
 # # Normalize X
 # X /= X.sum(1).reshape(-1, 1)
