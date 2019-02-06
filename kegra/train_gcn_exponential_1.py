@@ -10,7 +10,7 @@ np.random.seed(rnd_seed)
 set_random_seed(rnd_seed)
 random.seed(rnd_seed)
 
-from keras.layers import Input, Dropout, Dot, Subtract, Reshape, Concatenate, Dense, BatchNormalization
+from keras.layers import Input, Dropout, Dot, Subtract, Reshape, Concatenate, Dense, BatchNormalization, Activation
 from keras.models import Model
 from keras.optimizers import Adam
 from keras.regularizers import l2
@@ -26,6 +26,7 @@ import time, argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type=str, help="name of the dataset", default="cora")
+parser.add_argument("--train-percent", type=float, help="percentage of training data", default=0.036)
 parser.add_argument("--nepochs", type=int, help="number of epochs", default=300)
 parser.add_argument("--nfilters", type=int, help="number of hidden features", default=16)
 parser.add_argument("--ntrials", type=int, help="number of runs", default=10)
@@ -47,19 +48,20 @@ else:
 N_FILTERS = args.nfilters
 
 # Get data
-nodes, edges, A, X, y_train, y_val, y_test, idx_train, idx_val, idx_test = load_data(args.dataset)
+nodes, edges, A, X, y_train_origin, y_val_origin, y_test_origin, mask_train, mask_val, mask_test = load_data(args.dataset)
 
-# idx_val += idx_train
+# # idx_val += idx_train
 
-idx_test += idx_val
-idx_val = idx_train
-y_test += y_val
-y_val = y_train
+# idx_test += idx_val
+# idx_val = idx_train
+# y_test += y_val
+# y_val = y_train
+
 
 # Parameters
 N = X.shape[0]                # Number of nodes in the graph
 F = X.shape[1]                # Original feature dimension
-n_classes = y_train.shape[1]  # Number of classes
+n_classes = y_train_origin.shape[1]  # Number of classes
 
 # Preprocessing operations
 X = preprocess_features(X)
@@ -70,7 +72,11 @@ A_exp = preprocess_adj(A_exp, SYM_NORM, 'none')
 
 
 # Data statistics
-print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(idx_train)/idx_train.shape[0], np.sum(idx_val)/idx_val.shape[0], np.sum(idx_test)/idx_test.shape[0]), flush=True)
+print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(mask_train)/mask_train.shape[0], np.sum(mask_val)/mask_val.shape[0], np.sum(mask_test)/mask_test.shape[0]), flush=True)
+print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(mask_train), np.sum(mask_val), np.sum(mask_test)), flush=True)
+
+mask_test += mask_val
+y_test_origin += y_val_origin
 
 # # Normalize X
 # X /= X.sum(1).reshape(-1, 1)
@@ -91,10 +97,10 @@ test_acc_list = []
 
 for trial in range(args.ntrials):
 
-    rnd_seed = 733 + trial
-    np.random.seed(rnd_seed)
-    set_random_seed(rnd_seed)
-    random.seed(rnd_seed)
+    idx_train, idx_test, y_train, y_test = split_train_test(mask_train, mask_test, y_train_origin, y_test_origin, args.train_percent)
+    # for experiments
+    idx_val = idx_test
+    y_val = y_test
 
     # A_ will be passed to G, which is the normalized adjacency matrix with self-loop
     G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
@@ -112,7 +118,6 @@ for trial in range(args.ntrials):
 
     for i in range(args.nlayers-1):
         H = GraphConvolution(N_FILTERS, support, activation='relu', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])
-        # H = BatchNormalization()(H)
         H = Dropout(0.5)(H)
 
     Y = GraphConvolution(n_classes, support, activation='softmax', kernel_regularizer=l2(5e-4), bias_regularizer=l2(5e-4))([H, G])

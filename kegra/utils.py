@@ -3,6 +3,7 @@ from __future__ import print_function
 import os
 import pickle as pkl
 import sys
+import math
 
 import networkx as nx
 import numpy as np
@@ -132,3 +133,25 @@ def approx_soft_threshold(M, threshold = 0, scale = 1, k=4):
     M_exp = approx_expm(M, k)
     # print(type(M_exp), flush=True)
     return M_exp / M_exp.diagonal().sum()
+
+def split_train_test(mask_train, mask_test, y_train, y_test, percentage):
+    train_len = round(percentage * y_train.shape[0])
+    if train_len > np.sum(mask_train):
+        train_len = int(np.sum(mask_train))
+    idx = np.arange(y_train.shape[0])
+    idx_train = np.random.permutation(idx[mask_train])
+    idx_test = idx[mask_test]
+    y = y_train + y_test
+    idx_perm_train = idx_train[0:train_len]
+    # idx_perm_test = np.concatenate(idx_train[train_len:], idx_test)
+    idx_perm_test = idx_test
+
+    idx_train = sample_mask(idx_perm_train, y.shape[0])
+    idx_test = sample_mask(idx_perm_test, y.shape[0])
+
+    y_train = np.zeros(y.shape)
+    y_test = np.zeros(y.shape)
+    y_train[idx_perm_train, :] = y[idx_perm_train, :]
+    y_test[idx_perm_test, :] = y[idx_perm_test, :]
+
+    return idx_train, idx_test, y_train, y_test
