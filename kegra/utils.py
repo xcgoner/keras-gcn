@@ -143,8 +143,8 @@ def split_train_test(mask_train, mask_test, y_train, y_test, percentage):
     idx_test = idx[mask_test]
     y = y_train + y_test
     idx_perm_train = idx_train[0:train_len]
-    # idx_perm_test = np.concatenate(idx_train[train_len:], idx_test)
-    idx_perm_test = idx_test
+    idx_perm_test = np.concatenate([idx_train[train_len:], idx_test])
+    # idx_perm_test = idx_test
 
     idx_train = sample_mask(idx_perm_train, y.shape[0])
     idx_test = sample_mask(idx_perm_test, y.shape[0])

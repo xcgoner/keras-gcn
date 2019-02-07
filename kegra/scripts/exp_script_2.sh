@@ -26,4 +26,4 @@ modelfile=$basename.h5
 
 cd /homes/cx2/gcn/keras-gcn/kegra/
 # python train_rgcn.py 2>&1 | tee $watchfile
-python train_gcn_exponential_1.py --save $modelfile --dataset "cora" --train-percent 0.057 --lr 0.01 --nepochs 200 --nlayers 2 --nfilters 16 --expm 1 --ntrials 10 2>&1 | tee $watchfile
+python train_gcn_exponential_1.py --save $modelfile --dataset "cora" --train-percent 0.01 --lr 0.02 --nepochs 200 --nlayers 2 --nfilters 16 --expm 3 --ntrials 10 2>&1 | tee $watchfile
