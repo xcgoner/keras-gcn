@@ -73,10 +73,10 @@ A_exp = preprocess_adj(A_exp, SYM_NORM, 'none')
 
 # Data statistics
 print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(mask_train)/mask_train.shape[0], np.sum(mask_val)/mask_val.shape[0], np.sum(mask_test)/mask_test.shape[0]), flush=True)
-print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(mask_train), np.sum(mask_val), np.sum(mask_test)), flush=True)
+# print("Classes {:03d}, Train samples {:.2%}, Val samples {:.2%}, Test samples {:.2%}" .format(n_classes, np.sum(mask_train), np.sum(mask_val), np.sum(mask_test)), flush=True)
 
-mask_test += mask_val
-y_test_origin += y_val_origin
+# mask_test += mask_val
+# y_test_origin += y_val_origin
 
 # # Normalize X
 # X /= X.sum(1).reshape(-1, 1)
@@ -98,9 +98,11 @@ test_acc_list = []
 for trial in range(args.ntrials):
 
     idx_train, idx_test, y_train, y_test = split_train_test(mask_train, mask_test, y_train_origin, y_test_origin, args.train_percent)
-    # for experiments
-    idx_val = idx_test
-    y_val = y_test
+    # # for experiments
+    # idx_val = idx_test
+    # y_val = y_test
+    idx_val = mask_val
+    y_val = y_val_origin
 
     # A_ will be passed to G, which is the normalized adjacency matrix with self-loop
     G = Input(shape=(None, None), batch_shape=(None, None), sparse=True)
