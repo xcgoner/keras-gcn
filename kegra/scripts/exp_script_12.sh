@@ -31,10 +31,10 @@ export KMP_AFFINITY=granularity=fine,compact,1,0;
 
 basename=/homes/cx2/gcn/keras-gcn/results/gcn_exp
 dataset="pubmed"
-percent=0.002
-lr=0.02
+percent=0.001
+lr=0.04
 
-watchfile1=${basename}_6.log
+watchfile1=${basename}_12.log
 
 for nlayers in 1 2 3
 do

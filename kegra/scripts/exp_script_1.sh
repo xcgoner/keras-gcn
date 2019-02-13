@@ -30,8 +30,8 @@ export KMP_AFFINITY=granularity=fine,compact,1,0;
 # # python train_gcn_reg.py --save $modelfile --lr 0.002 --nfolds 0 --augmentation no_augmentation --nfilters 64 --selfloop "eye" --reigen 0 --nepochs 200 --nlayers 2 --ntrials 1 2>&1 | tee $watchfile
 
 basename=/homes/cx2/gcn/keras-gcn/results/gcn_exp
-dataset="cora"
-percent=0.02
+dataset="citeseer"
+percent=0.003
 lr=0.01
 
 watchfile1=${basename}_1.log

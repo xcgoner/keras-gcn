@@ -30,8 +30,8 @@ export KMP_AFFINITY=granularity=fine,compact,1,0;
 
 
 basename=/homes/cx2/gcn/keras-gcn/results/gcn_exp
-dataset="cora"
-percent=0.02
+dataset="citeseer"
+percent=0.003
 lr=0.04
 
 watchfile1=${basename}_4.log
