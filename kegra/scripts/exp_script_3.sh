@@ -38,13 +38,16 @@ nlayers=2
 
 watchfile1=${basedir}/${basename}_3.log
 
-for percent in 0.03 0.02 0.01 0.005
+for nfilters in 16 64
 do
-    for expm in 1 2
+    for percent in 0.03 0.02 0.01 0.005
     do
-        watchfile=${basedir}/${basename}_${dataset}_${percent}_${lr}_${nlayers}_${expm}.log
-        modelfile=${basedir}/model.${basename}_${dataset}_${percent}_${lr}_${nlayers}_${expm}.h5
-        cd /homes/cx2/gcn/keras-gcn/kegra/
-        python train_gcn_exponential_1.py --save ${modelfile} --dataset ${dataset} --train-percent ${percent} --append 1 --lr ${lr} --nepochs 200 --nlayers ${nlayers} --nfilters 16 --expm ${expm} --ntrials 10 2>&1 | tee ${watchfile} ${watchfile1}
+        for expm in 1 2
+        do
+            watchfile=${basedir}/${basename}_${dataset}_${percent}_${lr}_${nlayers}_${nfilters}_${expm}.log
+            modelfile=${basedir}/model.${basename}_${dataset}_${percent}_${lr}_${nlayers}_${nfilters}_${expm}.h5
+            cd /homes/cx2/gcn/keras-gcn/kegra/
+            python train_gcn_exponential_1.py --save ${modelfile} --dataset ${dataset} --train-percent ${percent} --append 1 --lr ${lr} --nepochs 200 --nlayers ${nlayers} --nfilters ${nfilters} --expm ${expm} --ntrials 10 2>&1 | tee ${watchfile} ${watchfile1}
+        done
     done
 done
