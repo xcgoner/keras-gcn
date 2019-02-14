@@ -34,6 +34,7 @@ parser.add_argument("--nlayers", type=int, help="number of stacking layers", def
 parser.add_argument("--expm", type=int, help="order of matrix exponential", default=2)
 parser.add_argument("--sym", type=int, help="symmetric normalization", default=1)
 parser.add_argument("--lr", type=float, help="learning rate", default=0.01)
+parser.add_argument("--append", type=int, help="append to test set", default=0)
 parser.add_argument("--save", type=str, help="path of saved model", default="")
 
 args = parser.parse_args()
@@ -97,7 +98,7 @@ test_acc_list = []
 
 for trial in range(args.ntrials):
 
-    idx_train, idx_test, y_train, y_test = split_train_test(mask_train, mask_test, y_train_origin, y_test_origin, args.train_percent)
+    idx_train, idx_test, y_train, y_test = split_train_test(mask_train, mask_test, y_train_origin, y_test_origin, args.train_percent, args.append)
     # # for experiments
     # idx_val = idx_test
     # y_val = y_test

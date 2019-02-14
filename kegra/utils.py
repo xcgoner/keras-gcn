@@ -134,7 +134,7 @@ def approx_soft_threshold(M, threshold = 0, scale = 1, k=4):
     # print(type(M_exp), flush=True)
     return M_exp / M_exp.diagonal().sum()
 
-def split_train_test(mask_train, mask_test, y_train, y_test, percentage):
+def split_train_test(mask_train, mask_test, y_train, y_test, percentage, append_test=False):
     train_len = round(percentage * y_train.shape[0])
     if train_len > np.sum(mask_train):
         train_len = int(np.sum(mask_train))
@@ -143,7 +143,8 @@ def split_train_test(mask_train, mask_test, y_train, y_test, percentage):
     idx_test = idx[mask_test]
     y = y_train + y_test
     idx_perm_train = idx_train[0:train_len]
-    # idx_perm_test = np.concatenate([idx_train[train_len:], idx_test])
+    if append_test:
+        idx_perm_test = np.concatenate([idx_train[train_len:], idx_test])
     # down-sampling training set, discard the remaining
     idx_perm_test = idx_test
 
