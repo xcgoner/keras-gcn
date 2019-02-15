@@ -30,7 +30,7 @@ export KMP_AFFINITY=granularity=fine,compact,1,0;
 
 
 basedir=/homes/cx2/gcn/keras-gcn/results
-basename=append_test_gcn_exp
+basename=gcn_exp
 dataset="cora"
 # percent=0.03
 lr=0.04
@@ -47,7 +47,7 @@ do
             watchfile=${basedir}/${basename}_${dataset}_${percent}_${lr}_${nlayers}_${nfilters}_${expm}.log
             modelfile=${basedir}/model.${basename}_${dataset}_${percent}_${lr}_${nlayers}_${nfilters}_${expm}.h5
             cd /homes/cx2/gcn/keras-gcn/kegra/
-            python train_gcn_exponential_1.py --save ${modelfile} --dataset ${dataset} --train-percent ${percent} --append 1 --lr ${lr} --nepochs 200 --nlayers ${nlayers} --nfilters ${nfilters} --expm ${expm} --ntrials 10 2>&1 | tee ${watchfile} ${watchfile1}
+            python train_gcn_exponential_1.py --save ${modelfile} --dataset ${dataset} --train-percent ${percent} --append 0 --lr ${lr} --nepochs 200 --nlayers ${nlayers} --nfilters ${nfilters} --expm ${expm} --ntrials 10 2>&1 | tee ${watchfile} ${watchfile1}
         done
     done
 done
